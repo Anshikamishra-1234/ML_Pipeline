@@ -13,7 +13,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 st.set_page_config(page_title="ML Pipeline", layout="wide")
 
-st.title("ML Pipeline")
+st.title("ML Pipeline - Advertising Dataset")
 
 # ---------------------------
 # FILE UPLOAD
