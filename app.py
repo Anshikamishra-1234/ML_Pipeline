@@ -11,9 +11,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
-st.set_page_config(page_title="Advanced ML Pipeline", layout="wide")
+st.set_page_config(page_title="ML Pipeline", layout="wide")
 
-st.title("Advanced ML Pipeline - Advertising Dataset")
+st.title("ML Pipeline")
 
 # ---------------------------
 # FILE UPLOAD
