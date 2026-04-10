@@ -256,48 +256,115 @@ def step_problem():
 
 def step_data():
     step_hdr(2,"📂","Load Your Dataset")
+
     uploaded = st.file_uploader("Upload CSV file", type=["csv"], help="CSV up to 200 MB")
+
     if uploaded:
         df = pd.read_csv(uploaded)
+
+        # CLEAN DATASET
+        df.columns = df.columns.str.strip()
+        df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
+
+        # RESET STATE (VERY IMPORTANT)
         st.session_state.df = df
+        st.session_state.target_col = None
+        st.session_state.feature_cols = []
+
         st.success(f"✅ Dataset loaded — {df.shape[0]:,} rows × {df.shape[1]} columns")
 
     df = st.session_state.df
-    if df is None: st.info("⬆️ Upload a CSV file to get started."); nav_btns(back=True,fwd=False); return
+
+    if df is None:
+        st.info("⬆️ Upload a CSV file to get started.")
+        nav_btns(back=True,fwd=False)
+        return
 
     st.markdown("---")
+
     c1,c2 = st.columns(2)
+
     with c1:
         st.markdown("##### 🎯 Target Column")
+
         num_cols = df.select_dtypes(include=np.number).columns.tolist()
-        target = st.selectbox("Select target feature:", num_cols,
-                              index=num_cols.index(st.session_state.target_col) if st.session_state.target_col in num_cols else 0)
+
+        if len(num_cols) == 0:
+            st.error("No numeric columns found!")
+            return
+
+        # SAFE RESET
+        if st.session_state.target_col not in num_cols:
+            st.session_state.target_col = num_cols[0]
+
+        target = st.selectbox(
+            "Select target feature:",
+            num_cols,
+            index=num_cols.index(st.session_state.target_col)
+        )
+
         st.session_state.target_col = target
+
     with c2:
         st.markdown("##### 🧬 Input Features")
+
         feat_opts = [c for c in num_cols if c != target]
-        feats = st.multiselect("Select features:", feat_opts,
-                                default=st.session_state.feature_cols or feat_opts)
+
+        # KEEP ONLY VALID FEATURES
+        valid_features = [
+            f for f in st.session_state.feature_cols
+            if f in feat_opts
+        ]
+
+        feats = st.multiselect(
+            "Select features:",
+            feat_opts,
+            default=valid_features if valid_features else feat_opts
+        )
+
         st.session_state.feature_cols = feats
 
+    # PCA (unchanged logic, just safe)
     if feats and len(feats) >= 2:
-        st.markdown("---"); st.markdown("##### 📊 PCA Projection")
+        st.markdown("---")
+        st.markdown("##### 📊 PCA Projection")
+
         t2,t3 = st.tabs(["2D View","3D View"])
-        X = df[feats].dropna(); y = df.loc[X.index, target]
-        Xs = StandardScaler().fit_transform(X)
-        n  = min(3,len(feats)); pca = PCA(n_components=n); comps = pca.fit_transform(Xs)
-        ev = pca.explained_variance_ratio_
-        with t2:
-            fig = px.scatter(x=comps[:,0],y=comps[:,1],color=y,
-                             labels={"x":f"PC1 ({ev[0]*100:.1f}%)","y":f"PC2 ({ev[1]*100:.1f}%)","color":target},
-                             color_continuous_scale="teal",
-                             title=f"PCA 2D — explains {(ev[0]+ev[1])*100:.1f}% variance")
-            st.plotly_chart(dplot(fig), use_container_width=True)
-        if n==3:
-            with t3:
-                fig3 = px.scatter_3d(x=comps[:,0],y=comps[:,1],z=comps[:,2],color=y,
-                                     color_continuous_scale="oranges",title="PCA 3D Projection")
-                st.plotly_chart(dplot(fig3,500), use_container_width=True)
+
+        X = df[feats].dropna()
+
+        if len(X) > 0:
+            y = df.loc[X.index, target]
+
+            Xs = StandardScaler().fit_transform(X)
+            n  = min(3,len(feats))
+
+            pca = PCA(n_components=n)
+            comps = pca.fit_transform(Xs)
+            ev = pca.explained_variance_ratio_
+
+            with t2:
+                fig = px.scatter(
+                    x=comps[:,0],
+                    y=comps[:,1],
+                    color=y,
+                    labels={
+                        "x":f"PC1 ({ev[0]*100:.1f}%)",
+                        "y":f"PC2 ({ev[1]*100:.1f}%)",
+                        "color":target
+                    }
+                )
+                st.plotly_chart(dplot(fig), use_container_width=True)
+
+            if n == 3:
+                with t3:
+                    fig3 = px.scatter_3d(
+                        x=comps[:,0],
+                        y=comps[:,1],
+                        z=comps[:,2],
+                        color=y
+                    )
+                    st.plotly_chart(dplot(fig3,500), use_container_width=True)
 
     nav_btns(back=True, fwd=bool(feats), fwd_label="Go to EDA →")
 
