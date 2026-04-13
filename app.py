@@ -141,8 +141,8 @@ hr { border-color: var(--border) !important; }
 # ─────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────
-STEPS = ["Problem","Data","EDA","Engineering","Features","Split","Model","Training","Metrics","Tuning"]
-ICONS = ["🎯","📂","🔬","⚙️","🧬","✂️","🤖","🏋️","📈","🚀"]
+STEPS = ["Problem","Data","EDA","Engineering","Features","Split","Model","Training","K-Fold Validation","Metrics","Tuning"]
+ICONS = ["🎯","📂","🔬","⚙️","🧬","✂️","🤖","🏋️","📊","📈","🚀"]
 
 defaults = dict(
     step=0, problem_type="Regression",
@@ -582,7 +582,69 @@ def step_training():
           <div class="sb"><div class="sn" style="color:#ffd166">{st.session_state.rmse:.4f}</div><div class="ss">RMSE</div></div>
           <div class="sb"><div class="sn" style="color:#ff6b35">{st.session_state.mae:.4f}</div><div class="ss">MAE</div></div>
         </div>""", unsafe_allow_html=True)
-    nav_btns(fwd_label="See Metrics →")
+    nav_btns(fwd_label="Go to Validation →")
+
+from sklearn.model_selection import cross_val_score
+
+def step_validation():
+    step_hdr(9,"📊","K-Fold Validation")
+
+    if st.session_state.X_train is None:
+        st.warning("Complete Training step first.")
+        nav_btns()
+        return
+
+    X = st.session_state.X_train
+    y = st.session_state.y_train
+
+    model = st.session_state.model
+
+    if model is None:
+        st.warning("Train the model first.")
+        nav_btns()
+        return
+
+    st.markdown("""
+    <div class="card">
+        <b>What is happening?</b><br>
+        <span style="color:#8b949e;font-size:0.88rem">
+        K-Fold splits the training data into multiple parts and evaluates the model multiple times 
+        to give a more reliable performance estimate.
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Select K
+    k = st.slider("Select number of folds (K)", 2, 10, 5)
+
+    # Run validation
+    if st.button("Run K-Fold Validation"):
+        with st.spinner("Running cross-validation..."):
+
+            scores = cross_val_score(model, X, y, cv=k)
+
+            mean_score = scores.mean()
+            std_score = scores.std()
+
+        # Display results
+        st.markdown(f"""
+        <div class="sg sg3">
+          <div class="sb"><div class="sn" style="color:#06d6a0">{mean_score:.4f}</div><div class="ss">Mean Score</div></div>
+          <div class="sb"><div class="sn" style="color:#ffd166">{std_score:.4f}</div><div class="ss">Std Dev</div></div>
+          <div class="sb"><div class="sn" style="color:#00b4d8">{k}</div><div class="ss">Folds</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Plot scores
+        fig = px.line(
+            x=list(range(1, k+1)),
+            y=scores,
+            markers=True,
+            title="K-Fold Scores per Fold"
+        )
+        st.plotly_chart(dplot(fig), use_container_width=True)
+
+    nav_btns(fwd_label="Go to Metrics →")
 
 
 def step_metrics():
@@ -675,5 +737,6 @@ st.markdown('<hr style="margin:0 0 1.8rem">', unsafe_allow_html=True)
 
 RENDERERS=[step_problem,step_data,step_eda,step_engineering,
            step_features,step_split,step_model,step_training,
-           step_metrics,step_tuning]
+           step_validation,step_metrics,step_tuning]
+
 RENDERERS[st.session_state.step]()
