@@ -141,8 +141,8 @@ hr { border-color: var(--border) !important; }
 # ─────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────
-STEPS = ["Problem","Data","EDA","Engineering","Features","Split","Model","Training","K-Fold Validation","Metrics","Tuning"]
-ICONS = ["🎯","📂","🔬","⚙️","🧬","✂️","🤖","🏋️","📊","📈","🚀"]
+STEPS = ["Problem","Data","EDA","Engineering","Features","Split","Model","Training","K-Fold Validation","Metrics","Prediction","Tuning"]
+ICONS = ["🎯","📂","🔬","⚙️","🧬","✂️","🤖","🏋️","📊","📈","🔮","🚀"]
 
 defaults = dict(
     step=0, problem_type="Regression",
@@ -577,12 +577,41 @@ def step_training():
             st.session_state.mae =mean_absolute_error(st.session_state.y_test,yp)
         st.success("✅ Training complete!")
         st.markdown(f"""
-        <div class="sg sg3">
-          <div class="sb"><div class="sn" style="color:#06d6a0">{st.session_state.r2:.4f}</div><div class="ss">R² Score</div></div>
-          <div class="sb"><div class="sn" style="color:#ffd166">{st.session_state.rmse:.4f}</div><div class="ss">RMSE</div></div>
-          <div class="sb"><div class="sn" style="color:#ff6b35">{st.session_state.mae:.4f}</div><div class="ss">MAE</div></div>
-        </div>""", unsafe_allow_html=True)
+<div class="sg sg3">
+  <div class="sb"><div class="sn" style="color:#06d6a0">{st.session_state.r2:.4f}</div><div class="ss">R² Score</div></div>
+  <div class="sb"><div class="sn" style="color:#ffd166">{st.session_state.rmse:.4f}</div><div class="ss">RMSE</div></div>
+  <div class="sb"><div class="sn" style="color:#ff6b35">{st.session_state.mae:.4f}</div><div class="ss">MAE</div></div>
+</div>""", unsafe_allow_html=True)
+
+
+# 🔥 MODEL COMPARISON (ADD HERE)
+    if st.checkbox("Compare with other models"):
+
+        models = {
+            "Linear Regression": LinearRegression(),
+            "Random Forest": RandomForestRegressor(),
+            "Decision Tree": DecisionTreeRegressor()
+        }
+
+        results = {}
+
+        for name, m in models.items():
+            m.fit(st.session_state.X_train, st.session_state.y_train)
+            preds = m.predict(st.session_state.X_test)
+            results[name] = r2_score(st.session_state.y_test, preds)
+
+        comp_df = pd.DataFrame(results.items(), columns=["Model", "R2 Score"])
+
+        st.markdown("### 📊 Model Comparison")
+        st.dataframe(comp_df)
+
+        fig = px.bar(comp_df, x="Model", y="R2 Score", color="Model")
+        st.plotly_chart(dplot(fig), use_container_width=True)
+
+
+    # 👇 KEEP THIS LAST
     nav_btns(fwd_label="Go to Validation →")
+
 
 from sklearn.model_selection import cross_val_score
 
@@ -673,7 +702,55 @@ def step_metrics():
         fig2=px.histogram(res,nbins=30,title="Residuals Distribution",color_discrete_sequence=["#06d6a0"])
         fig2.add_vline(x=0,line_color="#ff6b35",line_dash="dash",line_width=2)
         st.plotly_chart(dplot(fig2,380), use_container_width=True)
-    nav_btns(fwd_label="Go to Tuning →")
+
+    # 🔥 FEATURE IMPORTANCE
+    if hasattr(st.session_state.model, "feature_importances_"):
+        imp = st.session_state.model.feature_importances_
+        feat_names = st.session_state.final_features
+
+        imp_df = pd.DataFrame({
+            "Feature": feat_names,
+            "Importance": imp
+        }).sort_values(by="Importance", ascending=False)
+
+        st.markdown("### 📊 Feature Importance")
+        st.dataframe(imp_df)
+
+        fig = px.bar(imp_df, x="Feature", y="Importance", color="Importance")
+        st.plotly_chart(dplot(fig), use_container_width=True)
+
+        # 🔥 Insight (very important)
+        top_feature = imp_df.iloc[0]["Feature"]
+        st.success(f"📌 Most influential feature: {top_feature}")
+
+            
+
+    nav_btns(fwd_label="Go to Prediction →")
+
+def step_prediction():
+    step_hdr(11,"🔮","Make Prediction")
+
+    if st.session_state.model is None:
+        st.warning("Train model first.")
+        nav_btns()
+        return
+
+    features = st.session_state.final_features
+
+    input_data = {}
+
+    st.markdown("### Enter feature values")
+
+    for f in features:
+        input_data[f] = st.number_input(f"{f}")
+
+    if st.button("Predict"):
+        input_df = pd.DataFrame([input_data])
+        pred = st.session_state.model.predict(input_df)
+
+        st.success(f"Prediction: {round(pred[0],2)}")
+
+    nav_btns(back=True, fwd=True, fwd_label="Go to Tuning →")
 
 
 def step_tuning():
@@ -737,6 +814,6 @@ st.markdown('<hr style="margin:0 0 1.8rem">', unsafe_allow_html=True)
 
 RENDERERS=[step_problem,step_data,step_eda,step_engineering,
            step_features,step_split,step_model,step_training,
-           step_validation,step_metrics,step_tuning]
+           step_validation,step_metrics,step_prediction,step_tuning]
 
 RENDERERS[st.session_state.step]()
